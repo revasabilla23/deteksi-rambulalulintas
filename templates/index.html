@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Deteksi Rambu Lalu Lintas Indonesia</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f4faff;
+      color: #333;
+      text-align: center;
+      padding: 30px;
+    }
+
+    h2 {
+      color: #0066cc;
+      margin-bottom: 20px;
+    }
+
+    form {
+      margin: 20px auto;
+    }
+
+    input[type="file"] {
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      background-color: #fff;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin: 10px 5px;
+      border: none;
+      border-radius: 6px;
+      background-color: #0066cc;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #004d99;
+    }
+
+    video {
+      margin-top: 10px;
+      border: 2px solid #0066cc;
+      border-radius: 6px;
+    }
+
+    img {
+      margin-top: 10px;
+      border: 2px solid #0066cc;
+      border-radius: 6px;
+    }
+
+    hr {
+      margin: 40px auto;
+      width: 80%;
+      border: 1px solid #cce0ff;
+    }
+
+    #result {
+      font-size: 18px;
+      font-weight: bold;
+      color: #003366;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Deteksi Rambu Lalu Lintas Indonesia</h2>
+
+  <!-- Upload Gambar -->
+  <form method="POST" enctype="multipart/form-data">
+    <input type="file" name="image" required>
+    <button type="submit">Upload Gambar</button>
+  </form>
+
+  {% if label %}
+    <h3>Hasil Deteksi:</h3>
+    <p><strong>{{ label }}</strong> (Confidence: {{ '%.2f'|format(confidence) }}%)</p>
+    <img src="{{ image_path }}" alt="Hasil" width="300">
+  {% endif %}
+
+  <hr>
+
+  <!-- Realtime Kamera -->
+  <h3>Deteksi Kamera Realtime</h3>
+  <button onclick="startCamera()">Deteksi Kamera</button>
+  <button onclick="stopCamera()">Tutup Kamera</button><br>
+  <video id="cam" width="320" autoplay muted></video>
+  <p id="result"></p>
+
+  <script>
+    let video = document.getElementById('cam');
+    let result = document.getElementById('result');
+    let stream = null;
+    let interval = null;
+
+    async function startCamera() {
+      if (stream) return;
+
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      interval = setInterval(async () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+
+        canvas.toBlob(async (blob) => {
+          const formData = new FormData();
+          formData.append('frame', blob, 'frame.jpg');
+
+          const response = await fetch('/predict-frame', {
+            method: 'POST',
+            body: formData
+          });
+
+          const data = await response.json();
+          if (data.label) {
+            result.innerText = `${data.label} (${data.confidence})`;
+          }
+        }, 'image/jpeg');
+      }, 2000);
+    }
+
+    function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        stream = null;
+      }
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+      result.innerText = '';
+    }
+  </script>
+</body>
+</html>
